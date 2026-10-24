@@ -1,0 +1,89 @@
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+
+/* ---- Hardcoded input: edit these to test other cases ---- */
+#define N     5      /* philosophers (and forks) */
+#define MEALS 2      /* how many times each philosopher eats */
+/* --------------------------------------------------------- */
+
+#define LEFT(i)  (((i) + N - 1) % N)
+#define RIGHT(i) (((i) + 1) % N)
+
+enum { THINKING, HUNGRY, EATING };
+
+int state[N];
+pthread_mutex_t table = PTHREAD_MUTEX_INITIALIZER;   /* protects state[] */
+pthread_cond_t  can_eat[N];                          /* one wait queue per philosopher */
+
+/* Print an event plus the state of everyone: T = thinking, H = hungry, E = eating.
+   Always called with 'table' locked, so lines never interleave. */
+void log_event(int i, const char *msg) {
+    const char sym[] = {'T', 'H', 'E'};
+    printf("Philosopher %d %-16s [", i, msg);
+    for (int k = 0; k < N; k++)
+        printf("%c%s", sym[state[k]], k < N - 1 ? " " : "");
+    printf("]\n");
+}
+
+/* Let philosopher i eat if he is hungry and neither neighbour is eating.
+   Called with 'table' locked. */
+void test(int i) {
+    if (state[i] == HUNGRY &&
+        state[LEFT(i)]  != EATING &&
+        state[RIGHT(i)] != EATING) {
+        state[i] = EATING;
+        log_event(i, "starts eating");
+        pthread_cond_signal(&can_eat[i]);   /* wake him if he is waiting */
+    }
+}
+
+void pickup_forks(int i) {
+    pthread_mutex_lock(&table);
+    state[i] = HUNGRY;
+    log_event(i, "is hungry");
+    test(i);                                        /* try to take both forks */
+    while (state[i] != EATING)
+        pthread_cond_wait(&can_eat[i], &table);     /* block until a neighbour wakes us */
+    pthread_mutex_unlock(&table);
+}
+
+void putdown_forks(int i) {
+    pthread_mutex_lock(&table);
+    state[i] = THINKING;
+    log_event(i, "finished eating");
+    test(LEFT(i));                                  /* a neighbour may now be able to eat */
+    test(RIGHT(i));
+    pthread_mutex_unlock(&table);
+}
+
+void *philosopher(void *arg) {
+    int i = *(int *)arg;
+    for (int m = 0; m < MEALS; m++) {
+        usleep((i + 1) * 100000);    /* think  */
+        pickup_forks(i);
+        usleep(150000);              /* eat    */
+        putdown_forks(i);
+    }
+    return NULL;
+}
+
+int main(void) {
+    pthread_t th[N];
+    int id[N];
+
+    for (int i = 0; i < N; i++) {
+        state[i] = THINKING;
+        pthread_cond_init(&can_eat[i], NULL);
+    }
+
+    for (int i = 0; i < N; i++) {
+        id[i] = i;
+        pthread_create(&th[i], NULL, philosopher, &id[i]);
+    }
+    for (int i = 0; i < N; i++)
+        pthread_join(th[i], NULL);
+
+    printf("\nAll %d philosophers finished %d meals each. No deadlock.\n", N, MEALS);
+    return 0;
+}
