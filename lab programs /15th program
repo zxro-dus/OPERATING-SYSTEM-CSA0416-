@@ -1,0 +1,153 @@
+#include <stdio.h>
+#include <string.h>
+
+#define MAX_USERS 5
+#define MAX_FILES 5
+#define NAME_LEN  20
+
+typedef struct {
+    char name[NAME_LEN];
+    int  size;      /* KB */
+    int  used;
+} FileEntry;
+
+typedef struct {
+    char      name[NAME_LEN];       /* user name */
+    FileEntry files[MAX_FILES];     /* this user's own directory (UFD) */
+    int       count;
+    int       used;
+} UserDir;
+
+UserDir mfd[MAX_USERS];             /* Master File Directory */
+int user_count = 0;
+
+int find_user(const char *u) {
+    for (int i = 0; i < MAX_USERS; i++)
+        if (mfd[i].used && strcmp(mfd[i].name, u) == 0) return i;
+    return -1;
+}
+
+int find_file(UserDir *ud, const char *f) {
+    for (int i = 0; i < MAX_FILES; i++)
+        if (ud->files[i].used && strcmp(ud->files[i].name, f) == 0) return i;
+    return -1;
+}
+
+void create_user(const char *u) {
+    if (find_user(u) != -1) {
+        printf("create user %s -> FAILED: user already exists\n", u);
+        return;
+    }
+    if (user_count == MAX_USERS) {
+        printf("create user %s -> FAILED: master directory full\n", u);
+        return;
+    }
+    for (int i = 0; i < MAX_USERS; i++) {
+        if (!mfd[i].used) {
+            memset(&mfd[i], 0, sizeof(UserDir));
+            strncpy(mfd[i].name, u, NAME_LEN - 1);
+            mfd[i].used = 1;
+            user_count++;
+            printf("create user %s -> OK\n", u);
+            return;
+        }
+    }
+}
+
+void create_file(const char *u, const char *f, int size) {
+    int ui = find_user(u);
+    if (ui == -1) { printf("create %s/%s -> FAILED: user not found\n", u, f); return; }
+    UserDir *ud = &mfd[ui];
+
+    if (find_file(ud, f) != -1) {
+        printf("create %s/%s -> FAILED: name already exists in this directory\n", u, f);
+        return;
+    }
+    if (ud->count == MAX_FILES) {
+        printf("create %s/%s -> FAILED: user directory full\n", u, f);
+        return;
+    }
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (!ud->files[i].used) {
+            strncpy(ud->files[i].name, f, NAME_LEN - 1);
+            ud->files[i].name[NAME_LEN - 1] = '\0';
+            ud->files[i].size = size;
+            ud->files[i].used = 1;
+            ud->count++;
+            printf("create %s/%s -> OK (%d KB)\n", u, f, size);
+            return;
+        }
+    }
+}
+
+void delete_file(const char *u, const char *f) {
+    int ui = find_user(u);
+    if (ui == -1) { printf("delete %s/%s -> FAILED: user not found\n", u, f); return; }
+    int fi = find_file(&mfd[ui], f);
+    if (fi == -1) { printf("delete %s/%s -> FAILED: file not found\n", u, f); return; }
+    mfd[ui].files[fi].used = 0;
+    mfd[ui].count--;
+    printf("delete %s/%s -> OK\n", u, f);
+}
+
+void search_file(const char *u, const char *f) {
+    int ui = find_user(u);
+    if (ui == -1) { printf("search %s/%s -> user not found\n", u, f); return; }
+    int fi = find_file(&mfd[ui], f);
+    if (fi == -1) printf("search %s/%s -> not found\n", u, f);
+    else          printf("search %s/%s -> found (%d KB)\n", u, f, mfd[ui].files[fi].size);
+}
+
+void search_all(const char *f) {
+    int found = 0;
+    printf("search all users for %s:\n", f);
+    for (int i = 0; i < MAX_USERS; i++) {
+        if (!mfd[i].used) continue;
+        int fi = find_file(&mfd[i], f);
+        if (fi != -1) {
+            printf("  found in %s's directory (%d KB)\n", mfd[i].name, mfd[i].files[fi].size);
+            found = 1;
+        }
+    }
+    if (!found) printf("  not found in any directory\n");
+}
+
+void list_all(void) {
+    printf("\nMaster File Directory (%d user%s):\n", user_count, user_count == 1 ? "" : "s");
+    for (int i = 0; i < MAX_USERS; i++) {
+        if (!mfd[i].used) continue;
+        printf("  [%s] (%d file%s)\n", mfd[i].name, mfd[i].count, mfd[i].count == 1 ? "" : "s");
+        if (mfd[i].count == 0) printf("      <empty>\n");
+        for (int j = 0; j < MAX_FILES; j++)
+            if (mfd[i].files[j].used)
+                printf("      %-12s %d KB\n", mfd[i].files[j].name, mfd[i].files[j].size);
+    }
+}
+
+int main(void) {
+    /* ---- Hardcoded operations: edit these to test other cases ---- */
+    create_user("alice");
+    create_user("bob");
+    create_user("carol");
+    create_user("alice");                    /* duplicate user -> fails */
+
+    create_file("alice", "notes.txt", 12);
+    create_file("alice", "main.c",     4);
+    create_file("bob",   "main.c",     9);   /* same name, different user -> OK */
+    create_file("bob",   "photo.jpg", 850);
+    create_file("carol", "data.csv",  60);
+    create_file("alice", "notes.txt",  5);   /* duplicate in same directory -> fails */
+    create_file("dave",  "report.doc", 10);  /* user does not exist -> fails */
+    list_all();
+
+    search_file("alice", "data.csv");        /* belongs to carol, not alice */
+    search_file("bob",   "photo.jpg");
+    search_all("main.c");
+
+    delete_file("bob",   "photo.jpg");
+    delete_file("carol", "missing.txt");
+    list_all();
+    /* -------------------------------------------------------------- */
+
+    return 0;
+}
