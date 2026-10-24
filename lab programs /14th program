@@ -1,0 +1,94 @@
+#include <stdio.h>
+#include <string.h>
+
+#define MAX_FILES 10
+#define NAME_LEN  20
+
+typedef struct {
+    char name[NAME_LEN];
+    int  size;      /* file size in KB */
+    int  used;      /* 1 = slot occupied, 0 = free slot */
+} FileEntry;
+
+FileEntry dir[MAX_FILES];   /* the single directory: one flat table */
+int count = 0;
+
+int find(const char *name) {
+    for (int i = 0; i < MAX_FILES; i++)
+        if (dir[i].used && strcmp(dir[i].name, name) == 0)
+            return i;
+    return -1;
+}
+
+void create_file(const char *name, int size) {
+    if (find(name) != -1) {
+        printf("create %-10s -> FAILED: name already exists (names must be unique)\n", name);
+        return;
+    }
+    if (count == MAX_FILES) {
+        printf("create %-10s -> FAILED: directory full\n", name);
+        return;
+    }
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (!dir[i].used) {
+            strncpy(dir[i].name, name, NAME_LEN - 1);
+            dir[i].name[NAME_LEN - 1] = '\0';
+            dir[i].size = size;
+            dir[i].used = 1;
+            count++;
+            printf("create %-10s -> OK (%d KB)\n", name, size);
+            return;
+        }
+    }
+}
+
+void delete_file(const char *name) {
+    int i = find(name);
+    if (i == -1) {
+        printf("delete %-10s -> FAILED: file not found\n", name);
+        return;
+    }
+    dir[i].used = 0;
+    count--;
+    printf("delete %-10s -> OK\n", name);
+}
+
+void search_file(const char *name) {
+    int i = find(name);
+    if (i == -1) printf("search %-10s -> not found\n", name);
+    else         printf("search %-10s -> found at entry %d (%d KB)\n", name, i + 1, dir[i].size);
+}
+
+void list_files(void) {
+    printf("\nDirectory listing (%d file%s):\n", count, count == 1 ? "" : "s");
+    if (count == 0) { printf("  <empty>\n\n"); return; }
+    printf("  %-5s %-12s %s\n", "No.", "Name", "Size (KB)");
+    int n = 1;
+    for (int i = 0; i < MAX_FILES; i++)
+        if (dir[i].used)
+            printf("  %-5d %-12s %d\n", n++, dir[i].name, dir[i].size);
+    printf("\n");
+}
+
+int main(void) {
+    /* ---- Hardcoded operations: edit these to test other cases ---- */
+    create_file("notes.txt",  12);
+    create_file("main.c",      4);
+    create_file("photo.jpg", 850);
+    create_file("data.csv",   60);
+    create_file("main.c",      9);     /* duplicate name -> must fail */
+    list_files();
+
+    search_file("data.csv");
+    search_file("report.doc");         /* does not exist */
+
+    delete_file("notes.txt");
+    delete_file("missing.txt");        /* does not exist */
+    list_files();
+
+    create_file("report.doc", 30);     /* reuses the freed slot */
+    list_files();
+    /* -------------------------------------------------------------- */
+
+    return 0;
+}
