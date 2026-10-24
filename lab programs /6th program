@@ -1,0 +1,72 @@
+#include <stdio.h>
+
+int main(void) {
+    /* ---- Hardcoded input: edit these to test other cases ---- */
+    int n = 5;
+    int at[] = {0, 1, 2, 3, 4};   /* arrival times          */
+    int bt[] = {8, 4, 2, 1, 3};   /* burst times            */
+    int pr[] = {3, 2, 4, 1, 5};   /* priority (1 = highest) */
+    /* --------------------------------------------------------- */
+
+    int rem[n], ct[n], tat[n], wt[n];
+    int seg_pid[200], seg_start[200], seg_end[200], segs = 0;
+    float total_wt = 0, total_tat = 0;
+
+    for (int i = 0; i < n; i++) rem[i] = bt[i];
+
+    int time = 0, completed = 0, last = -2;
+
+    while (completed < n) {
+        /* pick the arrived, unfinished process with the best priority number */
+        int idx = -1;
+        for (int i = 0; i < n; i++) {
+            if (rem[i] > 0 && at[i] <= time && (idx == -1 || pr[i] < pr[idx]))
+                idx = i;   /* ties go to the earlier-entered process */
+        }
+
+        if (idx == -1) {            /* CPU idle this tick */
+            time++;
+            last = -1;
+            continue;
+        }
+
+        /* new Gantt segment whenever the running process changes */
+        if (idx != last) {
+            seg_pid[segs] = idx + 1;
+            seg_start[segs] = time;
+            segs++;
+        }
+
+        /* run the chosen process for exactly 1 time unit */
+        time++;
+        rem[idx]--;
+        seg_end[segs - 1] = time;
+        last = idx;
+
+        if (rem[idx] == 0) {
+            completed++;
+            ct[idx] = time;
+            tat[idx] = ct[idx] - at[idx];
+            wt[idx] = tat[idx] - bt[idx];
+        }
+    }
+
+    printf("%-8s %-8s %-8s %-9s %-12s %-8s %-12s\n",
+           "Process", "Arrival", "Burst", "Priority", "Completion", "Wait", "Turnaround");
+    for (int i = 0; i < n; i++) {
+        printf("P%-7d %-8d %-8d %-9d %-12d %-8d %-12d\n",
+               i + 1, at[i], bt[i], pr[i], ct[i], wt[i], tat[i]);
+        total_wt += wt[i];
+        total_tat += tat[i];
+    }
+
+    printf("\nAverage waiting time    : %.2f\n", total_wt / n);
+    printf("Average turnaround time : %.2f\n", total_tat / n);
+
+    printf("\nGantt Chart:\n");
+    for (int i = 0; i < segs; i++)
+        printf("| P%d (%d-%d) ", seg_pid[i], seg_start[i], seg_end[i]);
+    printf("|\n");
+
+    return 0;
+}
