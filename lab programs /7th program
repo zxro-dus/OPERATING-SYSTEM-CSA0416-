@@ -1,0 +1,63 @@
+#include <stdio.h>
+
+int main(void) {
+    /* ---- Hardcoded input: edit these to test other cases ---- */
+    int n = 5;
+    int at[] = {0, 1, 2, 3, 4};   /* arrival times */
+    int bt[] = {7, 4, 1, 4, 2};   /* burst times   */
+    /* --------------------------------------------------------- */
+
+    int start[n], ct[n], tat[n], wt[n], done[n], order[n];
+    float total_wt = 0, total_tat = 0;
+
+    for (int i = 0; i < n; i++) done[i] = 0;
+
+    int time = 0, completed = 0;
+
+    while (completed < n) {
+        /* among arrived, unfinished processes, pick the smallest burst time */
+        int idx = -1;
+        for (int i = 0; i < n; i++) {
+            if (!done[i] && at[i] <= time && (idx == -1 || bt[i] < bt[idx]))
+                idx = i;   /* ties go to the earlier-entered process */
+        }
+
+        if (idx == -1) {
+            /* CPU idle: jump to the next arrival */
+            int next = -1;
+            for (int i = 0; i < n; i++)
+                if (!done[i] && (next == -1 || at[i] < next)) next = at[i];
+            time = next;
+            continue;
+        }
+
+        start[idx] = time;
+        time += bt[idx];            /* runs to completion (non-preemptive) */
+        ct[idx] = time;
+        tat[idx] = ct[idx] - at[idx];
+        wt[idx] = tat[idx] - bt[idx];
+        done[idx] = 1;
+        order[completed++] = idx;
+    }
+
+    printf("%-8s %-8s %-8s %-8s %-8s %-12s %-12s\n",
+           "Process", "Arrival", "Burst", "Start", "Wait", "Turnaround", "Completion");
+    for (int i = 0; i < n; i++) {
+        printf("P%-7d %-8d %-8d %-8d %-8d %-12d %-12d\n",
+               i + 1, at[i], bt[i], start[i], wt[i], tat[i], ct[i]);
+        total_wt += wt[i];
+        total_tat += tat[i];
+    }
+
+    printf("\nAverage waiting time    : %.2f\n", total_wt / n);
+    printf("Average turnaround time : %.2f\n", total_tat / n);
+
+    printf("\nGantt Chart:\n");
+    for (int i = 0; i < n; i++) {
+        int p = order[i];
+        printf("| P%d (%d-%d) ", p + 1, start[p], ct[p]);
+    }
+    printf("|\n");
+
+    return 0;
+}
