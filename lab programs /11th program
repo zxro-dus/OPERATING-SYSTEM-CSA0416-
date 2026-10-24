@@ -1,0 +1,73 @@
+#include <stdio.h>
+#include <pthread.h>
+
+#define NUM_THREADS 4
+#define ARRAY_SIZE  100
+#define INCREMENTS  100000
+
+int  data[ARRAY_SIZE];
+long partial[NUM_THREADS];            /* one slot per thread, so no conflict */
+
+volatile long unsafe_counter = 0;     /* shared, NOT protected */
+long safe_counter = 0;                /* shared, protected by the mutex */
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+
+typedef struct {
+    int id;
+    int start;
+    int end;      /* exclusive */
+} Task;
+
+void *worker(void *arg) {
+    Task *t = (Task *)arg;
+
+    /* Part 1: each thread sums its own slice of the shared array */
+    long s = 0;
+    for (int i = t->start; i < t->end; i++) s += data[i];
+    partial[t->id] = s;
+    printf("Thread %d: summed data[%d..%d] = %ld\n",
+           t->id, t->start, t->end - 1, s);
+
+    /* Part 2: all threads hammer the same two counters */
+    for (int i = 0; i < INCREMENTS; i++) {
+        unsafe_counter++;                  /* read-modify-write, can lose updates */
+
+        pthread_mutex_lock(&lock);         /* only one thread at a time in here */
+        safe_counter++;
+        pthread_mutex_unlock(&lock);
+    }
+    return NULL;
+}
+
+int main(void) {
+    pthread_t threads[NUM_THREADS];
+    Task tasks[NUM_THREADS];
+    int chunk = ARRAY_SIZE / NUM_THREADS;
+
+    for (int i = 0; i < ARRAY_SIZE; i++) data[i] = i + 1;   /* 1..100 */
+
+    /* Create the threads */
+    for (int i = 0; i < NUM_THREADS; i++) {
+        tasks[i].id    = i;
+        tasks[i].start = i * chunk;
+        tasks[i].end   = (i + 1) * chunk;
+        if (pthread_create(&threads[i], NULL, worker, &tasks[i]) != 0) {
+            perror("pthread_create");
+            return 1;
+        }
+    }
+
+    /* Wait for all of them to finish */
+    for (int i = 0; i < NUM_THREADS; i++)
+        pthread_join(threads[i], NULL);
+
+    long total = 0;
+    for (int i = 0; i < NUM_THREADS; i++) total += partial[i];
+
+    printf("\nTotal sum (expected 5050)      : %ld\n", total);
+    printf("Unsafe counter (expected %d): %ld\n", NUM_THREADS * INCREMENTS, unsafe_counter);
+    printf("Safe counter   (expected %d): %ld\n", NUM_THREADS * INCREMENTS, safe_counter);
+
+    pthread_mutex_destroy(&lock);
+    return 0;
+}
