@@ -1,0 +1,51 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#include <sys/wait.h>
+
+typedef struct {
+    char message[64];
+    int  numbers[5];
+    int  count;
+    int  sum;
+    char reply[64];
+} SharedData;
+
+int main(void) {
+    /* anonymous shared mapping: inherited by the child after fork() */
+    SharedData *shm = mmap(NULL, sizeof(SharedData),
+                           PROT_READ | PROT_WRITE,
+                           MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    if (shm == MAP_FAILED) { perror("mmap"); return 1; }
+
+    strcpy(shm->message, "Hello child, please add these numbers");
+    int data[] = {10, 20, 30, 40, 50};
+    shm->count = 5;
+    for (int i = 0; i < shm->count; i++) shm->numbers[i] = data[i];
+    shm->sum = 0;
+
+    printf("Parent: wrote message and numbers 10 20 30 40 50\n");
+    fflush(stdout);
+
+    pid_t pid = fork();
+    if (pid < 0) { perror("fork"); return 1; }
+
+    if (pid == 0) {
+        printf("Child : read message \"%s\"\n", shm->message);
+        int s = 0;
+        for (int i = 0; i < shm->count; i++) s += shm->numbers[i];
+        shm->sum = s;
+        strcpy(shm->reply, "Done, sum written to shared memory");
+        printf("Child : computed sum = %d and wrote it back\n", s);
+        exit(0);
+    }
+
+    wait(NULL);
+    printf("Parent: child finished, sum = %d\n", shm->sum);
+    printf("Parent: reply = \"%s\"\n", shm->reply);
+
+    munmap(shm, sizeof(SharedData));
+    return 0;
+}
