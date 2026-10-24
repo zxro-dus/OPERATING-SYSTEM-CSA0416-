@@ -1,0 +1,73 @@
+#include <stdio.h>
+
+#define MAXB 20
+
+enum { FIRST, BEST, WORST, NEXT };
+
+/* ---- Hardcoded input: edit these to test other cases ---- */
+int blocks[]  = {100, 500, 200, 300, 600};   /* free memory block sizes */
+int procs[]   = {212, 417, 112, 426};        /* process memory requests */
+/* --------------------------------------------------------- */
+
+int nb = sizeof(blocks) / sizeof(blocks[0]);
+int np = sizeof(procs)  / sizeof(procs[0]);
+
+void simulate(const char *name, int strategy) {
+    int free_[MAXB];
+    for (int i = 0; i < nb; i++) free_[i] = blocks[i];   /* fresh copy each run */
+
+    int next_start = 0;      /* Next Fit: where the last search ended */
+    int allocated = 0;
+
+    printf("=== %s ===\n", name);
+    printf("%-8s %-6s %-6s %-11s %-9s\n", "Process", "Size", "Block", "Block size", "Left over");
+
+    for (int p = 0; p < np; p++) {
+        int idx = -1;
+
+        if (strategy == FIRST) {
+            for (int i = 0; i < nb; i++)
+                if (free_[i] >= procs[p]) { idx = i; break; }
+        }
+        else if (strategy == BEST) {
+            for (int i = 0; i < nb; i++)
+                if (free_[i] >= procs[p] && (idx == -1 || free_[i] < free_[idx]))
+                    idx = i;                       /* smallest block that fits */
+        }
+        else if (strategy == WORST) {
+            for (int i = 0; i < nb; i++)
+                if (free_[i] >= procs[p] && (idx == -1 || free_[i] > free_[idx]))
+                    idx = i;                       /* largest block that fits */
+        }
+        else { /* NEXT: like First Fit, but resume from the last allocation */
+            for (int k = 0; k < nb; k++) {
+                int i = (next_start + k) % nb;     /* wraps around the list */
+                if (free_[i] >= procs[p]) { idx = i; break; }
+            }
+        }
+
+        if (idx == -1) {
+            printf("P%-7d %-6d Not allocated\n", p + 1, procs[p]);
+        } else {
+            int before = free_[idx];
+            free_[idx] -= procs[p];
+            allocated++;
+            if (strategy == NEXT) next_start = idx;
+            printf("P%-7d %-6d B%-5d %-11d %-9d\n",
+                   p + 1, procs[p], idx + 1, before, free_[idx]);
+        }
+    }
+
+    int total = 0;
+    printf("Free blocks after: ");
+    for (int i = 0; i < nb; i++) { printf("%d ", free_[i]); total += free_[i]; }
+    printf("\nAllocated %d of %d processes, total free memory = %d\n\n", allocated, np, total);
+}
+
+int main(void) {
+    simulate("First Fit", FIRST);
+    simulate("Best Fit",  BEST);
+    simulate("Worst Fit", WORST);
+    simulate("Next Fit",  NEXT);
+    return 0;
+}
