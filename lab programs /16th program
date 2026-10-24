@@ -1,0 +1,111 @@
+#include <stdio.h>
+#include <string.h>
+
+#define MAX_EMP  10
+#define NAME_LEN 20
+
+typedef struct {
+    int   id;                 /* 0 means this slot is empty */
+    char  name[NAME_LEN];
+    char  dept[NAME_LEN];
+    float salary;
+} Employee;
+
+/* Simulated "file": a raw byte array, MAX_EMP fixed-size records */
+unsigned char disk[MAX_EMP * sizeof(Employee)];
+
+int valid_id(int id) { return id >= 1 && id <= MAX_EMP; }
+
+/* Same offset formula as fseek: (id - 1) * record size */
+void load(int id, Employee *e) {
+    memcpy(e, disk + (id - 1) * sizeof(Employee), sizeof(Employee));
+}
+
+void store(int id, const Employee *e) {
+    memcpy(disk + (id - 1) * sizeof(Employee), e, sizeof(Employee));
+}
+
+void add_employee(int id, const char *name, const char *dept, float salary) {
+    if (!valid_id(id)) {
+        printf("add %d %s -> FAILED: ID must be between 1 and %d\n", id, name, MAX_EMP);
+        return;
+    }
+    Employee e;
+    load(id, &e);
+    if (e.id != 0) {
+        printf("add %d %s -> FAILED: ID %d already in use\n", id, name, id);
+        return;
+    }
+    memset(&e, 0, sizeof(e));
+    e.id = id;
+    strncpy(e.name, name, NAME_LEN - 1);
+    strncpy(e.dept, dept, NAME_LEN - 1);
+    e.salary = salary;
+    store(id, &e);
+    printf("add %d %s -> OK\n", id, name);
+}
+
+void read_employee(int id) {
+    Employee e;
+    if (!valid_id(id)) { printf("read %d -> no employee at this record\n", id); return; }
+    load(id, &e);
+    if (e.id == 0) { printf("read %d -> no employee at this record\n", id); return; }
+    printf("read %d -> ID %d, %s, %s, %.2f\n", id, e.id, e.name, e.dept, e.salary);
+}
+
+void update_salary(int id, float salary) {
+    Employee e;
+    if (!valid_id(id)) { printf("update %d -> FAILED: no employee with ID %d\n", id, id); return; }
+    load(id, &e);
+    if (e.id == 0) { printf("update %d -> FAILED: no employee with ID %d\n", id, id); return; }
+    e.salary = salary;
+    store(id, &e);
+    printf("update %d -> OK (salary %.2f)\n", id, salary);
+}
+
+void delete_employee(int id) {
+    Employee e;
+    if (!valid_id(id)) { printf("delete %d -> FAILED: no employee with ID %d\n", id, id); return; }
+    load(id, &e);
+    if (e.id == 0) { printf("delete %d -> FAILED: no employee with ID %d\n", id, id); return; }
+    memset(&e, 0, sizeof(e));
+    store(id, &e);
+    printf("delete %d -> OK\n", id);
+}
+
+void list_all(void) {
+    printf("\nEmployee file:\n");
+    printf("  %-4s %-12s %-10s %s\n", "ID", "Name", "Dept", "Salary");
+    for (int id = 1; id <= MAX_EMP; id++) {
+        Employee e;
+        load(id, &e);
+        if (e.id != 0)
+            printf("  %-4d %-12s %-10s %.2f\n", e.id, e.name, e.dept, e.salary);
+    }
+    printf("\n");
+}
+
+int main(void) {
+    memset(disk, 0, sizeof(disk));   /* "create" the file: all slots empty */
+
+    /* ---- Hardcoded operations: edit these to test other cases ---- */
+    add_employee(1, "Arun",    "Sales",   45000);
+    add_employee(3, "Meena",   "HR",      52000);
+    add_employee(5, "Karthik", "IT",      78000);
+    add_employee(2, "Divya",   "Finance", 61000);
+    add_employee(3, "Ravi",    "IT",      70000);   /* ID taken -> fails */
+    add_employee(12, "Zed",    "IT",      1000);    /* ID out of range -> fails */
+    list_all();
+
+    read_employee(5);
+    read_employee(4);                               /* empty slot */
+    update_salary(5, 85000);
+    read_employee(5);
+
+    delete_employee(3);
+    delete_employee(7);                             /* never existed */
+    list_all();
+    /* -------------------------------------------------------------- */
+
+    return 0;
+}
