@@ -1,0 +1,64 @@
+#include <stdio.h>
+
+struct Process
+{
+    int bt, pr, rt;
+};
+
+int main()
+{
+    int n, complete = 0, time = 0;
+    struct Process p[10];
+
+    printf("Enter number of processes: ");
+    scanf("%d", &n);
+
+    for(int i = 0; i < n; i++)
+    {
+        printf("Enter Burst Time of P%d: ", i + 1);
+        scanf("%d", &p[i].bt);
+
+        printf("Enter Priority of P%d: ", i + 1);
+        scanf("%d", &p[i].pr);
+
+        p[i].rt = p[i].bt;
+    }
+
+    while(complete != n)
+    {
+        int highest = 9999;
+        int index = -1;
+
+        for(int i = 0; i < n; i++)
+        {
+            if(p[i].rt > 0 && p[i].pr < highest)
+            {
+                highest = p[i].pr;
+                index = i;
+            }
+        }
+
+        p[index].rt--;
+        time++;
+
+        if(p[index].rt == 0)
+            complete++;
+    }
+
+    printf("\nAll processes executed successfully.\n");
+
+    return 0;
+}
+OUTPUT
+Enter number of processes: 3
+
+Enter Burst Time of P1: 5
+Enter Priority of P1: 2
+
+Enter Burst Time of P2: 3
+Enter Priority of P2: 1
+
+Enter Burst Time of P3: 4
+Enter Priority of P3: 3
+
+All processes executed successfully.
