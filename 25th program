@@ -1,0 +1,28 @@
+#include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <dirent.h>
+
+int main()
+{
+    int fd;
+    struct stat s;
+    DIR *d;
+    struct dirent *de;
+
+    fd=open("test.txt",O_RDONLY);
+    printf("File descriptor: %d\n",fcntl(fd,F_GETFD));
+
+    lseek(fd,0,SEEK_SET);
+    stat("test.txt",&s);
+    printf("File size: %ld\n",s.st_size);
+
+    d=opendir(".");
+    while((de=readdir(d))!=NULL)
+        printf("%s\n",de->d_name);
+
+    closedir(d);
+    close(fd);
+    return 0;
+}
